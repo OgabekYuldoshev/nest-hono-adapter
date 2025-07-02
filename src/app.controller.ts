@@ -7,8 +7,6 @@ export class AppController {
 
   @Get()
   getHello() {
-    return {
-      stream: 'File',
-    };
+    return this.appService.getHello();
   }
 }

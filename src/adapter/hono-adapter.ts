@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
@@ -14,6 +15,9 @@ import {
 import { Context, Hono, HonoRequest } from 'hono';
 import { Logger, NestApplicationOptions, StreamableFile } from '@nestjs/common';
 import { StatusCode } from 'hono/utils/http-status';
+import { cors } from 'hono/cors';
+import { serveStatic } from '@hono/node-server/serve-static';
+
 export class HonoAdapter extends AbstractHttpAdapter<
   ServerType,
   HonoRequest,
@@ -26,7 +30,7 @@ export class HonoAdapter extends AbstractHttpAdapter<
     super(instance);
   }
 
-  initHttpServer(options: NestApplicationOptions) {
+  public initHttpServer(options: NestApplicationOptions) {
     const server = createAdaptorServer({
       fetch: this.instance?.fetch.bind(this.instance),
       createServer: options.httpsOptions
@@ -81,23 +85,32 @@ export class HonoAdapter extends AbstractHttpAdapter<
     });
   }
 
-  useStaticAssets() {}
-  setViewEngine() {
+  public useStaticAssets(path: string, options?: any): any {
+    const staticPath = options?.prefix || '/static';
+    this.instance?.use(
+      `${staticPath}/*`,
+      serveStatic({
+        root: path, // './public' papkasi
+        ...options,
+      }),
+    );
+  }
+  public setViewEngine() {
     this.logger.warn('setViewEngine is not implemented');
   }
-  getRequestHostname(request: Context) {
-    return new URL(request.req.url).hostname;
+  public getRequestHostname(request: HonoRequest) {
+    return new URL(request.url).hostname;
   }
-  getRequestMethod(request: Context) {
-    return request.req.method;
+  public getRequestMethod(request: HonoRequest) {
+    return request.method;
   }
-  getRequestUrl(request: Context) {
-    return request.req.url;
+  public getRequestUrl(request: HonoRequest) {
+    return request.url;
   }
   public status(response: Context, status: StatusCode) {
     response.status(status);
   }
-  reply(response: Context, body: any, status?: StatusCode) {
+  public reply(response: Context, body: any, status?: StatusCode) {
     if (status) {
       response.status(status);
     }
@@ -138,28 +151,64 @@ export class HonoAdapter extends AbstractHttpAdapter<
 
     response.res = response.body(body);
   }
-  end() {}
-  render() {
+  public end(response: Context, message?: string): void {
+    if (message) {
+      response.text(message);
+    }
+  }
+  public render() {
     this.logger.warn('render is not implemented');
   }
-  redirect() {}
-  setErrorHandler() {}
-  setNotFoundHandler() {}
-  isHeadersSent() {}
-  getHeader() {}
-  setHeader() {}
-  appendHeader() {}
-  registerParserMiddleware(prefix?: string, rawBody?: boolean) {
-    console.log(prefix, rawBody);
+  public redirect() {}
+  public setErrorHandler(handler: any): any {
+    this.instance?.onError((err, c) => {
+      return handler(err, c.req, c);
+    });
   }
-  enableCors() {}
-  createMiddlewareFactory() {
+
+  public setNotFoundHandler(handler: any): any {
+    this.instance?.notFound((c) => {
+      return handler(c.req, c);
+    });
+  }
+  public isHeadersSent() {
+    return false;
+  }
+  public getHeader(response: Context, name: string) {
+    return response.res.headers.get(name);
+  }
+  public setHeader(response: Context, name: string, value: string) {
+    response.header(name, value);
+  }
+  public appendHeader(response: Context, name: string, value: string) {
+    response.header(name, value);
+  }
+  public registerParserMiddleware() {}
+  public enableCors(options?: any, prefix?: string) {
+    const corsOptions = {
+      origin: options?.origin || '*',
+      credentials: options?.credentials || false,
+      methods: options?.methods || ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: options?.allowedHeaders || [
+        'Content-Type',
+        'Authorization',
+      ],
+      ...options,
+    };
+
+    if (prefix) {
+      this.instance?.use(`${prefix}/*`, cors(corsOptions));
+    } else {
+      this.instance?.use('*', cors(corsOptions));
+    }
+  }
+  public createMiddlewareFactory() {
     return (() => {}) as any;
   }
-  getType(): string {
+  public getType(): string {
     return 'hono';
   }
-  applyVersionFilter() {
+  public applyVersionFilter() {
     return (() => {}) as any;
   }
   private registerRoutes(method: string, ...args: any[]) {
